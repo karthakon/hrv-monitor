@@ -62,9 +62,11 @@ with submodules, then build in the official Docker image:
     ./waf configure --board obelix@pvt --slot 1
     ./waf build && ./waf bundle && exit
 
-Check which slot your watch is running (Settings > System >
-Information) and build for the OTHER slot. Install with the pebble
-tool: enable Developer Connection in the Pebble app, then
+You must manually keep track of which slot you are flashing. If this
+is your first custom firmware, build for slot 1 (assuming original
+firmware is on slot 0). For all future flashes, build for the
+alternate slot. Install with the pebble tool: enable Developer
+Connection in the Pebble app, then
 
     pebble fw --phone <PHONE_IP> install build/normal_obelix_pvt_*.pbz
 
