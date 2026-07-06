@@ -1,0 +1,23 @@
+{
+  "name": "hrv-monitor",
+  "author": "karthakon",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "HRV Monitor",
+    "uuid": "7c3f9e21-4b8a-4d15-9f2e-6a1c8d5b0e37",
+    "sdkVersion": "3",
+    "enableMultiJS": false,
+    "targetPlatforms": ["emery"],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    },
+    "capabilities": ["health"]
+  }
+}
