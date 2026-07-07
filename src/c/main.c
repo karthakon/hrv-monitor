@@ -42,8 +42,18 @@ static void prv_close_minute(void) {
   hrv_buf_reset(&s_minute_buf);
 }
 
+static bool s_hrv_on = true;
+static void prv_set_hrv(bool on) {
+  if (on == s_hrv_on) return;
+  s_hrv_on = on;
+  health_service_set_hrv_sample_period(on ? 1 : 0);
+}
 static void prv_tick_handler(struct tm *tick_time, TimeUnits changed) {
   prv_close_minute();
+  if (s_recording) {
+    int m = (int)((time(NULL) - s_session_start) / 60) % 15;
+    prv_set_hrv(m < 3);
+  }
   layer_mark_dirty(s_canvas);
 }
 
@@ -71,6 +81,7 @@ static void prv_health_handler(HealthEventType event, void *context) {
 
 static void prv_start_recording(void) {
   s_recording = true;
+  prv_set_hrv(true);
   s_session_start = time(NULL);
   s_night_baseline_var = 0;
   for (int i = 0; i < 4; i++) s_mins[i] = 0;
@@ -82,6 +93,7 @@ static void prv_start_recording(void) {
 static void prv_stop_recording(void) {
   prv_close_minute();
   s_recording = false;
+  prv_set_hrv(true);
   NightSummary ns;
   ns.date = s_session_start;
   ns.rmssd = hrv_rmssd(&s_night_buf);
@@ -194,6 +206,9 @@ static void prv_draw_timeline(GContext *ctx, GRect bounds) {
     if (!storage_epoch_read(idx, &rec)) continue;
     int16_t bar = (rec.stage == 0) ? h : (rec.stage == 1) ? (h * 2 / 3)
                   : (rec.stage == 2) ? (h / 4) : (h / 2);
+    GColor c = (rec.stage == 0) ? GColorRed : (rec.stage == 1) ? GColorVividCerulean
+               : (rec.stage == 2) ? GColorOxfordBlue : GColorVividViolet;
+    graphics_context_set_stroke_color(ctx, c);
     graphics_draw_line(ctx, GPoint(x, y0 + h), GPoint(x, y0 + h - bar));
   }
 }
@@ -211,6 +226,12 @@ static void prv_canvas_update(Layer *layer, GContext *ctx) {
 }
 
 static void prv_select_click(ClickRecognizerRef ref, void *ctx) {
+  if (!s_recording && storage_epoch_count() == 0) {
+    prv_start_recording();
+  }
+  layer_mark_dirty(s_canvas);
+}
+static void prv_select_long(ClickRecognizerRef ref, void *ctx) {
   if (s_recording) {
     prv_stop_recording();
   } else {
@@ -231,6 +252,7 @@ static void prv_up_click(ClickRecognizerRef ref, void *ctx) {
 
 static void prv_click_config(void *ctx) {
   window_single_click_subscribe(BUTTON_ID_SELECT, prv_select_click);
+  window_long_click_subscribe(BUTTON_ID_SELECT, 1500, prv_select_long, NULL);
   window_single_click_subscribe(BUTTON_ID_DOWN, prv_down_click);
   window_single_click_subscribe(BUTTON_ID_UP, prv_up_click);
 }
