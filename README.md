@@ -84,12 +84,13 @@ to stock.
     pebble build
     pebble install --phone <PHONE_IP>
 
-## Comparing with a Garmin
+## Comparing with another device
 
-Wear the Pebble on one wrist and the Garmin on the other. Start a
-recording before sleep, stop it on waking, then compare the NIGHT
-screen against Garmin's sleep stages and the SESSION RMSSD against
-Garmin's overnight HRV. Note Garmin only computes HRV status during
-its scheduled sleep window and needs ~3 weeks to build a baseline;
-this app does the same 7-day vs 21-day comparison once 21 nights are
-recorded.
+Wear the Pebble on one wrist and any device with overnight optical HRV
+(Garmin, Oura, Whoop, Apple Watch, etc.) on the other. Start a recording
+before sleep, stop it on waking, then compare the NIGHT screen against
+the other device's sleep stages and the SESSION RMSSD against its
+overnight HRV. Both are optical PRV, so expect some divergence between
+devices. Many devices only compute HRV inside a scheduled sleep window
+and need weeks to build a baseline; this app does its 7-day vs 21-day
+comparison once 21 nights are recorded.
