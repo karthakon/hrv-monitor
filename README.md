@@ -10,7 +10,7 @@ which adds HRV support for the GH3X2X optical sensor
 `health_service_set_hrv_sample_period()` and
 `health_service_peek_hrv_ppi_ms()`, which only exist in the fork.
 
-## Screens (Up/Down to switch, Select to start/stop recording)
+## Screens (Up/Down to switch)
 
 1. **LIVE** — last PPI (ms), current HR, HR/HRV event counters,
    running RMSSD over the last ~400 accepted beats.
@@ -46,6 +46,13 @@ recording writes one 8-byte epoch (mean PPI, RMSSD, beat count,
 quality, stage) to persistent storage (~8 hours max per session).
 Stopping a recording of 30+ minutes saves a nightly summary; the last
 30 nights feed the BASELINE screen.
+
+### Controls
+
+Long-press Select (1.5s) to start or stop a recording. A single click
+of Select only starts a recording when no stored epochs exist; it can
+never stop a recording or overwrite stored data, so a stray button
+press cannot wipe last night's session.
 
 ## Building and installing
 
