@@ -51,15 +51,17 @@ ground truth.
 ## Effect on Pebble Health's own numbers
 
 The heart-rate sensor is a shared, arbitrated resource. When this app
-runs the HRM, Pebble Health's own tracking receives those samples
-too. Running this app therefore feeds extra heart-rate data into
-Pebble Health beyond its normal measurement interval, which can shift
-the numbers Pebble Health reports (heart rate, and its own sleep
-staging). Each app still processes and catalogs its data
-independently; what's shared is the raw sensor input, not the
-results. But if you compare this app against the stock Pebble Health
-app on the same night, remember that running this app changed the
-data Pebble Health saw.
+runs the HRM continuously, Pebble Health's own tracking receives
+those samples too. Normally Pebble Health samples HR in short bursts
+spaced by your measurement-interval setting (e.g. 10 min); running
+this app fills those gaps with extra samples. This can shift Pebble
+Health's *heart-rate* metrics (median/resting HR, its phone HR log).
+
+Pebble Health's *sleep staging*, however, is computed purely from
+accelerometer motion — it does not read heart rate at all — so
+running this app does not change Pebble Health's sleep-stage numbers.
+Each app processes its data independently; what's shared is the raw
+sensor input, not the results.
 
 ## Artifact filtering
 
