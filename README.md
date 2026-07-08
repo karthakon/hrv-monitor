@@ -27,10 +27,10 @@ which adds HRV support for the GH3X2X optical sensor
 
 ## How sleep staging works (experimental)
 
-Each minute is classified from Pebble Health's live activity mask
-plus this app's own HRV analysis:
+Each minute is classified from this app's own HRV analysis plus
+Pebble Health's live activity mask. Deep sleep is handled
+separately (see below):
 
-- **Deep** when Pebble Health reports `HealthActivityRestfulSleep`.
 - **Awake** when the sleep bit is absent — but only after 3
   consecutive such minutes (a debounce that suppresses flicker from
   the live mask). Fewer than 3 holds the previous stage.
@@ -39,7 +39,17 @@ plus this app's own HRV analysis:
   (computed from the first ~60 accepted beats after one hour). REM
   shows erratic beat-to-beat intervals; deep sleep shows smooth, high
   HRV.
-- **Light** otherwise.
+- **Light** otherwise. Minutes where Pebble Health reports
+  `HealthActivityRestfulSleep` also fall here during live recording;
+  they are reassigned to Deep at session stop.
+- **Deep** is NOT classified live. Pebble Health's live "in deep
+  right now" bit structurally undercounts (deep runs need ~20 min
+  before they register, and a once-per-minute peek misses ended and
+  retrospectively-registered runs). Instead, at session stop the app
+  queries the finalized total via
+  `health_service_sum(HealthMetricSleepRestfulSeconds, start, end)`
+  and moves that many minutes from Light to Deep. This matches
+  Pebble Health's own Deep figure exactly.
 
 REM detection needs continuous beat-to-beat data, so it requires the
 HRM to be sampling every minute. Aggressive HRM duty-cycling and REM
