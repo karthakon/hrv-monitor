@@ -24,6 +24,9 @@ typedef struct __attribute__((packed)) {
   uint16_t mins_light;
   uint16_t mins_deep;
   uint16_t mins_rem;
+  uint32_t rejected;
+  time_t start_time;
+  time_t end_time;
 } NightSummary;
 
 void storage_session_start(void);

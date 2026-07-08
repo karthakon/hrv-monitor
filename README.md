@@ -14,24 +14,49 @@ which adds HRV support for the GH3X2X optical sensor
 
 1. **LIVE** — last PPI (ms), current HR, HR/HRV event counters,
    running RMSSD over the last ~400 accepted beats.
-2. **SESSION** — recording duration, accepted/rejected beat counts,
-   RMSSD, SDNN, mean PPI for the whole session.
+2. **SESSION** — start/stop clock times, recording duration,
+   accepted/rejected beat counts, RMSSD, SDNN, mean PPI for the
+   session. Persists across app restarts (reads the last saved night
+   when not recording).
 3. **BASELINE** — 7-night average RMSSD vs a 21-night baseline band
    (mean +/- 1 SD). Status: Collecting / Balanced / LOW / HIGH.
    Needs 21 recorded nights before it reports a status.
-4. **NIGHT** — minutes per sleep stage (Awake/Light/Deep/REM) and a
-   hypnogram strip for the last session.
+4. **NIGHT** — total sleep duration plus minutes per sleep stage
+   (Awake/Light/Deep/REM) and a hypnogram strip. Persists across app
+   restarts.
 
 ## How sleep staging works (experimental)
 
-Deep and Awake come directly from Pebble Health
-(`HealthActivityRestfulSleep` / `HealthActivitySleep`). While Pebble
-Health reports *light* sleep, a minute is relabeled **REM** if its
-PPI variance is elevated (>1.5x) relative to the night's baseline
-variance (computed from the first ~60 accepted beats after one hour).
-REM shows erratic beat-to-beat intervals; deep sleep shows smooth,
-high HRV. This is a crude first pass — expect only rough agreement
-with a Garmin hypnogram.
+Each minute is classified from Pebble Health's live activity mask
+plus this app's own HRV analysis:
+
+- **Deep** when Pebble Health reports `HealthActivityRestfulSleep`.
+- **Awake** when the sleep bit is absent — but only after 3
+  consecutive such minutes (a debounce that suppresses flicker from
+  the live mask). Fewer than 3 holds the previous stage.
+- **REM** when a minute otherwise reads *light* but its PPI variance
+  is elevated (>1.5x) relative to the night's baseline variance
+  (computed from the first ~60 accepted beats after one hour). REM
+  shows erratic beat-to-beat intervals; deep sleep shows smooth, high
+  HRV.
+- **Light** otherwise.
+
+REM detection needs continuous beat-to-beat data, so it requires the
+HRM to be sampling every minute. Aggressive HRM duty-cycling and REM
+accuracy are in direct conflict: sparse sampling misses REM. This is
+an experimental first pass — expect only rough agreement with a
+consumer sleep tracker, which is itself an imperfect estimate, not
+ground truth.
+
+## Effect on Pebble Health's own numbers
+
+The heart-rate sensor is a shared, arbitrated resource. When this app
+runs the HRM, Pebble Health's own tracking receives those samples
+too. Running this app therefore feeds extra heart-rate data into
+Pebble Health beyond its normal measurement interval, which can shift
+the numbers Pebble Health reports (heart rate, and its own sleep
+staging). If you compare this app against the stock Pebble Health app
+on the same night, they are not independent measurements.
 
 ## Artifact filtering
 

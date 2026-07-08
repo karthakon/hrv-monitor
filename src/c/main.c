@@ -22,6 +22,9 @@ static HrvBuffer s_night_buf;
 static time_t s_session_start = 0;
 static uint32_t s_night_baseline_var = 0;
 static uint16_t s_mins[4] = {0, 0, 0, 0};
+static uint8_t s_awake_streak = 0;
+static SleepStage s_last_stage = StageLight;
+#define AWAKE_DEBOUNCE 3
 
 static void prv_close_minute(void) {
   if (!s_recording) return;
@@ -33,6 +36,15 @@ static void prv_close_minute(void) {
   rec.quality_pct = (total > 0) ? (uint8_t)((s_minute_buf.count * 100) / total) : 0;
   rec.reserved = 0;
   SleepStage st = sleep_stage_classify(&s_minute_buf, s_night_baseline_var);
+  // Debounce: a raw Awake only sticks after AWAKE_DEBOUNCE consecutive Awake minutes;
+  // otherwise hold the previous stage (kills flicker from the live activity mask).
+  if (st == StageAwake) {
+    s_awake_streak++;
+    if (s_awake_streak < AWAKE_DEBOUNCE) st = s_last_stage;
+  } else {
+    s_awake_streak = 0;
+  }
+  s_last_stage = st;
   rec.stage = (uint8_t)st;
   s_mins[st]++;
   storage_epoch_write(&rec);
@@ -51,8 +63,7 @@ static void prv_set_hrv(bool on) {
 static void prv_tick_handler(struct tm *tick_time, TimeUnits changed) {
   prv_close_minute();
   if (s_recording) {
-    int m = (int)((time(NULL) - s_session_start) / 60) % 15;
-    prv_set_hrv(m < 3);
+    prv_set_hrv(true);  // continuous sampling (duty cycle disabled for staging validation)
   }
   layer_mark_dirty(s_canvas);
 }
@@ -84,6 +95,8 @@ static void prv_start_recording(void) {
   prv_set_hrv(true);
   s_session_start = time(NULL);
   s_night_baseline_var = 0;
+  s_awake_streak = 0;
+  s_last_stage = StageLight;
   for (int i = 0; i < 4; i++) s_mins[i] = 0;
   hrv_buf_reset(&s_minute_buf);
   hrv_buf_reset(&s_night_buf);
@@ -104,6 +117,9 @@ static void prv_stop_recording(void) {
   ns.mins_light = s_mins[StageLight];
   ns.mins_deep = s_mins[StageDeep];
   ns.mins_rem = s_mins[StageREM];
+  ns.rejected = s_night_buf.rejected;
+  ns.start_time = s_session_start;
+  ns.end_time = time(NULL);
   if (ns.epoch_count >= 30) storage_night_save(&ns);
 }
 
@@ -140,6 +156,10 @@ static void prv_baseline(uint16_t *avg7, uint16_t *base21_lo,
 
 static char s_txt[160];
 
+static bool prv_last_night(NightSummary *out) {
+  return storage_night_count() > 0 && storage_night_read(0, out);
+}
+
 static void prv_draw_live(GContext *ctx, GRect bounds) {
   snprintf(s_txt, sizeof(s_txt),
            "LIVE %s\n\nPPI: %u ms\nHR: %u bpm\n\nHR ev: %lu\nHRV ev: %lu\nRMSSD(5m): %u",
@@ -152,14 +172,42 @@ static void prv_draw_live(GContext *ctx, GRect bounds) {
 }
 
 static void prv_draw_session(GContext *ctx, GRect bounds) {
-  uint32_t dur = 0;
-  if (s_session_start > 0) dur = (uint32_t)(time(NULL) - s_session_start);
+  time_t start = 0, end = 0;
+  uint16_t beats, rmssd, sdnn, ppi;
+  uint32_t rejected;
+  if (s_recording) {
+    start = s_session_start;
+    end = time(NULL);
+    beats = s_night_buf.count;
+    rejected = s_night_buf.rejected;
+    rmssd = hrv_rmssd(&s_night_buf);
+    sdnn = hrv_sdnn(&s_night_buf);
+    ppi = hrv_mean_ppi(&s_night_buf);
+  } else {
+    NightSummary ns;
+    if (!prv_last_night(&ns)) {
+      snprintf(s_txt, sizeof(s_txt), "SESSION\n\nNo data yet.");
+      graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
+                         bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+      return;
+    }
+    start = ns.start_time;
+    end = ns.end_time;
+    beats = ns.epoch_count;
+    rejected = ns.rejected;
+    rmssd = ns.rmssd;
+    sdnn = ns.sdnn;
+    ppi = ns.mean_ppi;
+  }
+  uint32_t dur = (end > start) ? (uint32_t)(end - start) : 0;
+  char t0[8] = "--:--", t1[8] = "--:--";
+  if (start > 0) { struct tm *lt = localtime(&start); strftime(t0, sizeof(t0), "%H:%M", lt); }
+  if (end > 0)   { struct tm *lt = localtime(&end);   strftime(t1, sizeof(t1), "%H:%M", lt); }
   snprintf(s_txt, sizeof(s_txt),
-           "SESSION\n\nDur: %luh %lum\nBeats: %u\nRejected: %lu\nRMSSD: %u\nSDNN: %u\nMean PPI: %u",
+           "SESSION\n\n%s-%s\nDur: %luh %lum\nBeats: %u\nRej: %lu\nRMSSD: %u\nSDNN: %u\nPPI: %u",
+           t0, t1,
            (unsigned long)(dur / 3600), (unsigned long)((dur % 3600) / 60),
-           s_night_buf.count, (unsigned long)s_night_buf.rejected,
-           hrv_rmssd(&s_night_buf), hrv_sdnn(&s_night_buf),
-           hrv_mean_ppi(&s_night_buf));
+           beats, (unsigned long)rejected, rmssd, sdnn, ppi);
   graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
                      bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
@@ -186,12 +234,33 @@ static void prv_draw_baseline(GContext *ctx, GRect bounds) {
 }
 
 static void prv_draw_timeline(GContext *ctx, GRect bounds) {
+  uint16_t awake, light, deep, rem;
+  if (s_recording) {
+    awake = s_mins[StageAwake];
+    light = s_mins[StageLight];
+    deep = s_mins[StageDeep];
+    rem = s_mins[StageREM];
+  } else {
+    NightSummary ns;
+    if (!prv_last_night(&ns)) {
+      snprintf(s_txt, sizeof(s_txt), "NIGHT\n\nNo data yet.");
+      graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
+                         bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+      return;
+    }
+    awake = ns.mins_awake;
+    light = ns.mins_light;
+    deep = ns.mins_deep;
+    rem = ns.mins_rem;
+  }
+  uint16_t sleep = light + deep + rem;
   snprintf(s_txt, sizeof(s_txt),
-           "NIGHT\n\nAwake: %um\nLight: %uh %um\nDeep: %uh %um\nREM: %uh %um",
-           s_mins[StageAwake],
-           s_mins[StageLight] / 60, s_mins[StageLight] % 60,
-           s_mins[StageDeep] / 60, s_mins[StageDeep] % 60,
-           s_mins[StageREM] / 60, s_mins[StageREM] % 60);
+           "NIGHT\n\nSleep: %uh %um\nAwake: %um\nLight: %uh %um\nDeep: %uh %um\nREM: %uh %um",
+           sleep / 60, sleep % 60,
+           awake,
+           light / 60, light % 60,
+           deep / 60, deep % 60,
+           rem / 60, rem % 60);
   graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
                      GRect(bounds.origin.x, bounds.origin.y, bounds.size.w, bounds.size.h - 44),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
@@ -269,7 +338,17 @@ static void prv_window_unload(Window *window) {
   layer_destroy(s_canvas);
 }
 
+#define PERSIST_VERSION_KEY 1
+#define PERSIST_VERSION 2
+static void prv_migrate(void) {
+  int32_t v = persist_exists(PERSIST_VERSION_KEY) ? persist_read_int(PERSIST_VERSION_KEY) : 0;
+  if (v < PERSIST_VERSION) {
+    for (uint32_t k = 100; k <= 250; k++) if (persist_exists(k)) persist_delete(k);
+    persist_write_int(PERSIST_VERSION_KEY, PERSIST_VERSION);
+  }
+}
 static void prv_init(void) {
+  prv_migrate();
   hrv_buf_reset(&s_live_buf);
   hrv_buf_reset(&s_minute_buf);
   hrv_buf_reset(&s_night_buf);
