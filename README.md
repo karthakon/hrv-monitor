@@ -55,8 +55,11 @@ runs the HRM, Pebble Health's own tracking receives those samples
 too. Running this app therefore feeds extra heart-rate data into
 Pebble Health beyond its normal measurement interval, which can shift
 the numbers Pebble Health reports (heart rate, and its own sleep
-staging). If you compare this app against the stock Pebble Health app
-on the same night, they are not independent measurements.
+staging). Each app still processes and catalogs its data
+independently; what's shared is the raw sensor input, not the
+results. But if you compare this app against the stock Pebble Health
+app on the same night, remember that running this app changed the
+data Pebble Health saw.
 
 ## Artifact filtering
 
@@ -122,7 +125,9 @@ Wear the Pebble on one wrist and any device with overnight optical HRV
 (Garmin, Oura, Whoop, Apple Watch, etc.) on the other. Start a recording
 before sleep, stop it on waking, then compare the NIGHT screen against
 the other device's sleep stages and the SESSION RMSSD against its
-overnight HRV. Both are optical PRV, so expect some divergence between
-devices. Many devices only compute HRV inside a scheduled sleep window
-and need weeks to build a baseline; this app does its 7-day vs 21-day
+overnight HRV. This app and every device listed above are all
+optical PRV estimates, so expect some divergence against whichever
+one you compare with — none of them is ground truth. Many devices
+only compute HRV inside a scheduled sleep window and need weeks to
+build a baseline; this app does its 7-day vs 21-day
 comparison once 21 nights are recorded.
