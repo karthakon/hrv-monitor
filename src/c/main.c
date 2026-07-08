@@ -113,6 +113,19 @@ static void prv_stop_recording(void) {
   ns.sdnn = hrv_sdnn(&s_night_buf);
   ns.mean_ppi = hrv_mean_ppi(&s_night_buf);
   ns.epoch_count = storage_epoch_count();
+  // Query finalized Deep (accelerometer-based) from Pebble Health rather than
+  // the lossy live peek. Live restful minutes were counted as Light above, so
+  // move that many minutes from Light to Deep to keep total sleep consistent.
+  time_t deep_end = time(NULL);
+  int deep_sec = (int)health_service_sum(HealthMetricSleepRestfulSeconds,
+                                         s_session_start, deep_end);
+  uint16_t deep_min = (deep_sec > 0) ? (uint16_t)(deep_sec / 60) : 0;
+  s_mins[StageDeep] = deep_min;
+  if (deep_min <= s_mins[StageLight]) {
+    s_mins[StageLight] -= deep_min;
+  } else {
+    s_mins[StageLight] = 0;
+  }
   ns.mins_awake = s_mins[StageAwake];
   ns.mins_light = s_mins[StageLight];
   ns.mins_deep = s_mins[StageDeep];
@@ -339,7 +352,7 @@ static void prv_window_unload(Window *window) {
 }
 
 #define PERSIST_VERSION_KEY 1
-#define PERSIST_VERSION 2
+#define PERSIST_VERSION 3
 static void prv_migrate(void) {
   int32_t v = persist_exists(PERSIST_VERSION_KEY) ? persist_read_int(PERSIST_VERSION_KEY) : 0;
   if (v < PERSIST_VERSION) {
