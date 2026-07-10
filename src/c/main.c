@@ -65,7 +65,7 @@ static void prv_tick_handler(struct tm *tick_time, TimeUnits changed) {
   if (s_recording) {
     prv_set_hrv(true);  // continuous sampling (duty cycle disabled for staging validation)
   }
-  layer_mark_dirty(s_canvas);
+  if (!s_recording) layer_mark_dirty(s_canvas);
 }
 
 static void prv_health_handler(HealthEventType event, void *context) {
@@ -87,7 +87,7 @@ static void prv_health_handler(HealthEventType event, void *context) {
       }
     }
   }
-  layer_mark_dirty(s_canvas);
+  if (!s_recording) layer_mark_dirty(s_canvas);
 }
 
 static void prv_start_recording(void) {
@@ -299,6 +299,12 @@ static void prv_canvas_update(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   graphics_context_set_text_color(ctx, GColorBlack);
   graphics_context_set_stroke_color(ctx, GColorBlack);
+  if (s_recording) {
+    graphics_draw_text(ctx, "Sleeping\n\nHold Select\nto stop",
+                       fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
+                       bounds, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    return;
+  }
   switch (s_screen) {
     case 0: prv_draw_live(ctx, bounds); break;
     case 1: prv_draw_session(ctx, bounds); break;
@@ -323,11 +329,13 @@ static void prv_select_long(ClickRecognizerRef ref, void *ctx) {
 }
 
 static void prv_down_click(ClickRecognizerRef ref, void *ctx) {
+  if (s_recording) return;
   s_screen = (s_screen + 1) % NUM_SCREENS;
   layer_mark_dirty(s_canvas);
 }
 
 static void prv_up_click(ClickRecognizerRef ref, void *ctx) {
+  if (s_recording) return;
   s_screen = (s_screen + NUM_SCREENS - 1) % NUM_SCREENS;
   layer_mark_dirty(s_canvas);
 }
