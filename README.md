@@ -106,7 +106,7 @@ with submodules, then build in the official Docker image:
     docker run --rm -it -v "$PWD":/pebble -w /pebble ghcr.io/coredevices/pebbleos-docker:v5 bash
     pip install -r requirements.txt
     git config --global --add safe.directory '*'
-    ./waf configure --board obelix@pvt --slot 1
+    ./waf configure --board obelix@pvt -DCONFIG_FIRMWARE_SLOT=1
     ./waf build && ./waf bundle && exit
 
 You must manually keep track of which slot you are flashing. If this
