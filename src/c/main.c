@@ -78,12 +78,13 @@ static void prv_health_handler(HealthEventType event, void *context) {
     uint16_t ppi = (uint16_t)health_service_peek_hrv_ppi_ms();
     if (ppi > 0) {
       s_last_ppi = ppi;
+      uint32_t now = (uint32_t)time(NULL);
       if (s_recording) {
-        hrv_buf_add(&s_live_buf, ppi, 1);
-        hrv_buf_add(&s_minute_buf, ppi, 1);
-        hrv_buf_add(&s_night_buf, ppi, 1);
+        hrv_buf_add(&s_live_buf, ppi, 1, now);
+        hrv_buf_add(&s_minute_buf, ppi, 1, now);
+        hrv_buf_add(&s_night_buf, ppi, 1, now);
       } else {
-        hrv_buf_add(&s_live_buf, ppi, 1);
+        hrv_buf_add(&s_live_buf, ppi, 1, now);
       }
     }
   }

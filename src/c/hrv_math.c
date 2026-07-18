@@ -3,13 +3,14 @@
 void hrv_buf_reset(HrvBuffer *b) {
   b->count = 0;
   b->last_accepted = 0;
+  b->last_accepted_time = 0;
   b->rejected = 0;
   b->rej_quality = 0;
   b->rej_range = 0;
   b->rej_jump = 0;
 }
 
-bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality) {
+bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality, uint32_t now) {
   if (quality == 0) {
     b->rejected++;
     b->rej_quality++;
@@ -20,7 +21,12 @@ bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality) {
     b->rej_range++;
     return false;
   }
-  if (b->last_accepted > 0) {
+  // Jump gate only applies to consecutive beats. If more than HRV_STALE_SEC
+  // elapsed since the last accepted interval, the two are not consecutive
+  // (sparse overnight stream), so skip the jump check and reset the reference.
+  bool fresh = (b->last_accepted_time > 0) &&
+               ((now - b->last_accepted_time) <= HRV_STALE_SEC);
+  if (b->last_accepted > 0 && fresh) {
     uint32_t diff = (ppi_ms > b->last_accepted) ?
       (ppi_ms - b->last_accepted) : (b->last_accepted - ppi_ms);
     if (diff * 5 > b->last_accepted) {
@@ -36,6 +42,7 @@ bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality) {
     b->ppi[HRV_BUF_MAX - 1] = ppi_ms;
   }
   b->last_accepted = ppi_ms;
+  b->last_accepted_time = now;
   return true;
 }
 
