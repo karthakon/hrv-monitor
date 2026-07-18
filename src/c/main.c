@@ -167,7 +167,7 @@ static void prv_baseline(uint16_t *avg7, uint16_t *base21_lo,
   }
 }
 
-static char s_txt[160];
+static char s_txt[200];
 
 static bool prv_last_night(NightSummary *out) {
   return storage_night_count() > 0 && storage_night_read(0, out);
@@ -217,10 +217,12 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
   if (start > 0) { struct tm *lt = localtime(&start); strftime(t0, sizeof(t0), "%H:%M", lt); }
   if (end > 0)   { struct tm *lt = localtime(&end);   strftime(t1, sizeof(t1), "%H:%M", lt); }
   snprintf(s_txt, sizeof(s_txt),
-           "SESSION\n\n%s-%s\nDur: %luh %lum\nBeats: %u\nRej: %lu\nRMSSD: %u\nSDNN: %u\nPPI: %u",
+           "SESSION\n\n%s-%s\nDur: %luh %lum\nBeats: %u\nRej: %lu\nR/J: %lu/%lu\nRMSSD: %u\nSDNN: %u\nPPI: %u",
            t0, t1,
            (unsigned long)(dur / 3600), (unsigned long)((dur % 3600) / 60),
-           beats, (unsigned long)rejected, rmssd, sdnn, ppi);
+           beats, (unsigned long)rejected,
+           (unsigned long)s_night_buf.rej_range, (unsigned long)s_night_buf.rej_jump,
+           rmssd, sdnn, ppi);
   graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
                      bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }

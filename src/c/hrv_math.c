@@ -4,11 +4,20 @@ void hrv_buf_reset(HrvBuffer *b) {
   b->count = 0;
   b->last_accepted = 0;
   b->rejected = 0;
+  b->rej_quality = 0;
+  b->rej_range = 0;
+  b->rej_jump = 0;
 }
 
 bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality) {
-  if (quality == 0 || ppi_ms < 300 || ppi_ms > 2000) {
+  if (quality == 0) {
     b->rejected++;
+    b->rej_quality++;
+    return false;
+  }
+  if (ppi_ms < 300 || ppi_ms > 2000) {
+    b->rejected++;
+    b->rej_range++;
     return false;
   }
   if (b->last_accepted > 0) {
@@ -16,6 +25,7 @@ bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality) {
       (ppi_ms - b->last_accepted) : (b->last_accepted - ppi_ms);
     if (diff * 5 > b->last_accepted) {
       b->rejected++;
+      b->rej_jump++;
       return false;
     }
   }

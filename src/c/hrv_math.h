@@ -8,6 +8,9 @@ typedef struct {
   uint16_t count;
   uint16_t last_accepted;
   uint32_t rejected;
+  uint32_t rej_quality;
+  uint32_t rej_range;
+  uint32_t rej_jump;
 } HrvBuffer;
 
 void hrv_buf_reset(HrvBuffer *b);
