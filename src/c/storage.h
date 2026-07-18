@@ -25,6 +25,8 @@ typedef struct __attribute__((packed)) {
   uint16_t mins_deep;
   uint16_t mins_rem;
   uint32_t rejected;
+  uint32_t rej_range;
+  uint32_t rej_jump;
   time_t start_time;
   time_t end_time;
 } NightSummary;

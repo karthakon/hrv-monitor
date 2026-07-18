@@ -132,6 +132,8 @@ static void prv_stop_recording(void) {
   ns.mins_deep = s_mins[StageDeep];
   ns.mins_rem = s_mins[StageREM];
   ns.rejected = s_night_buf.rejected;
+  ns.rej_range = s_night_buf.rej_range;
+  ns.rej_jump = s_night_buf.rej_jump;
   ns.start_time = s_session_start;
   ns.end_time = time(NULL);
   if (ns.epoch_count >= 30) storage_night_save(&ns);
@@ -188,12 +190,14 @@ static void prv_draw_live(GContext *ctx, GRect bounds) {
 static void prv_draw_session(GContext *ctx, GRect bounds) {
   time_t start = 0, end = 0;
   uint16_t beats, rmssd, sdnn, ppi;
-  uint32_t rejected;
+  uint32_t rejected, rr, rj;
   if (s_recording) {
     start = s_session_start;
     end = time(NULL);
     beats = s_night_buf.count;
     rejected = s_night_buf.rejected;
+    rr = s_night_buf.rej_range;
+    rj = s_night_buf.rej_jump;
     rmssd = hrv_rmssd(&s_night_buf);
     sdnn = hrv_sdnn(&s_night_buf);
     ppi = hrv_mean_ppi(&s_night_buf);
@@ -209,6 +213,8 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
     end = ns.end_time;
     beats = ns.epoch_count;
     rejected = ns.rejected;
+    rr = ns.rej_range;
+    rj = ns.rej_jump;
     rmssd = ns.rmssd;
     sdnn = ns.sdnn;
     ppi = ns.mean_ppi;
@@ -222,7 +228,7 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
            t0, t1,
            (unsigned long)(dur / 3600), (unsigned long)((dur % 3600) / 60),
            beats, (unsigned long)rejected,
-           (unsigned long)s_night_buf.rej_range, (unsigned long)s_night_buf.rej_jump,
+           (unsigned long)rr, (unsigned long)rj,
            rmssd, sdnn, ppi);
   graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
                      bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
