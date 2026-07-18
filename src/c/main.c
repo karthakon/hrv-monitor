@@ -223,7 +223,7 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
            beats, (unsigned long)rejected,
            (unsigned long)s_night_buf.rej_range, (unsigned long)s_night_buf.rej_jump,
            rmssd, sdnn, ppi);
-  graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
+  graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
                      bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
