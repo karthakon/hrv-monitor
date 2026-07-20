@@ -13,6 +13,7 @@ typedef struct {
   uint32_t rej_quality;
   uint32_t rej_range;
   uint32_t rej_jump;
+  uint32_t total_accepted;  // running total; count pins at HRV_BUF_MAX
 } HrvBuffer;
 
 void hrv_buf_reset(HrvBuffer *b);

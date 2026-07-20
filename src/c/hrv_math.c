@@ -8,6 +8,7 @@ void hrv_buf_reset(HrvBuffer *b) {
   b->rej_quality = 0;
   b->rej_range = 0;
   b->rej_jump = 0;
+  b->total_accepted = 0;
 }
 
 bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality, uint32_t now) {
@@ -43,6 +44,7 @@ bool hrv_buf_add(HrvBuffer *b, uint16_t ppi_ms, uint8_t quality, uint32_t now) {
   }
   b->last_accepted = ppi_ms;
   b->last_accepted_time = now;
+  b->total_accepted++;
   return true;
 }
 

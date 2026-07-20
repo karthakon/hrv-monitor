@@ -27,6 +27,7 @@ typedef struct __attribute__((packed)) {
   uint32_t rejected;
   uint32_t rej_range;
   uint32_t rej_jump;
+  uint32_t beats;  // true accepted-beat total (epoch_count is minutes)
   time_t start_time;
   time_t end_time;
 } NightSummary;

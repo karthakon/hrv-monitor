@@ -162,6 +162,7 @@ static void prv_stop_recording(void) {
   ns.mins_light = s_mins[StageLight];
   ns.mins_deep = s_mins[StageDeep];
   ns.mins_rem = s_mins[StageREM];
+  ns.beats = s_night_buf.total_accepted;
   ns.rejected = s_night_buf.rejected;
   ns.rej_range = s_night_buf.rej_range;
   ns.rej_jump = s_night_buf.rej_jump;
@@ -229,12 +230,13 @@ static void prv_draw_live(GContext *ctx, GRect bounds) {
 
 static void prv_draw_session(GContext *ctx, GRect bounds) {
   time_t start = 0, end = 0;
-  uint16_t beats, rmssd, sdnn, ppi;
+  uint32_t beats;
+  uint16_t rmssd, sdnn, ppi;
   uint32_t rejected, rr, rj;
   if (s_recording) {
     start = s_session_start;
     end = time(NULL);
-    beats = s_night_buf.count;
+    beats = s_night_buf.total_accepted;
     rejected = s_night_buf.rejected;
     rr = s_night_buf.rej_range;
     rj = s_night_buf.rej_jump;
@@ -251,7 +253,7 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
     }
     start = ns.start_time;
     end = ns.end_time;
-    beats = ns.epoch_count;
+    beats = ns.beats;
     rejected = ns.rejected;
     rr = ns.rej_range;
     rj = ns.rej_jump;
@@ -264,10 +266,10 @@ static void prv_draw_session(GContext *ctx, GRect bounds) {
   if (start > 0) { struct tm *lt = localtime(&start); strftime(t0, sizeof(t0), "%H:%M", lt); }
   if (end > 0)   { struct tm *lt = localtime(&end);   strftime(t1, sizeof(t1), "%H:%M", lt); }
   snprintf(s_txt, sizeof(s_txt),
-           "SESSION\n\n%s-%s\nDur: %luh %lum\nBeats: %u\nRej: %lu\nR/J: %lu/%lu\nRMSSD: %u\nSDNN: %u\nPPI: %u",
+           "SESSION\n\n%s-%s\nDur: %luh %lum\nBeats: %lu\nRej: %lu\nR/J: %lu/%lu\nRMSSD: %u\nSDNN: %u\nPPI: %u",
            t0, t1,
            (unsigned long)(dur / 3600), (unsigned long)((dur % 3600) / 60),
-           beats, (unsigned long)rejected,
+           (unsigned long)beats, (unsigned long)rejected,
            (unsigned long)rr, (unsigned long)rj,
            rmssd, sdnn, ppi);
   graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
