@@ -3,7 +3,7 @@
 #include "storage.h"
 #include "sleep_stage.h"
 
-#define NUM_SCREENS 4
+#define NUM_SCREENS 5
 
 static Window *s_window;
 static Layer *s_canvas;
@@ -14,6 +14,12 @@ static uint32_t s_hr_events = 0;
 static uint32_t s_hrv_events = 0;
 static uint16_t s_last_ppi = 0;
 static uint16_t s_last_hr = 0;
+static uint32_t s_spo2_events = 0;
+static uint8_t s_spo2_last = 0;
+static uint8_t s_spo2_last_q = 0;
+static uint16_t s_spo2_n = 0;
+static uint8_t s_spo2_min_pct = 0;
+static uint32_t s_spo2_sum = 0;
 
 static HrvBuffer s_live_buf;
 static HrvBuffer s_minute_buf;
@@ -87,6 +93,27 @@ static void prv_health_handler(HealthEventType event, void *context) {
         hrv_buf_add(&s_live_buf, ppi, 1, now);
       }
     }
+  } else if ((int)event == 6) {
+    s_spo2_events++;
+    uint8_t pct = health_service_peek_spo2_percent();
+    uint8_t q = health_service_peek_spo2_quality();
+    s_spo2_last = pct;
+    s_spo2_last_q = q;
+    // Accept only plausible, Acceptable-or-better readings (255 = off-wrist).
+    if (pct >= 50 && pct <= 100 && q >= 2 && q != 255) {
+      if (s_recording) {
+        time_t now_t = time(NULL);
+        SpO2Sample rec = {
+          .offset_min = (uint16_t)((now_t - s_session_start) / 60),
+          .percent = pct,
+          .quality = q,
+        };
+        storage_spo2_write(&rec);
+        s_spo2_n++;
+        s_spo2_sum += pct;
+        if (s_spo2_min_pct == 0 || pct < s_spo2_min_pct) s_spo2_min_pct = pct;
+      }
+    }
   }
   if (!s_recording) layer_mark_dirty(s_canvas);
 }
@@ -101,6 +128,10 @@ static void prv_start_recording(void) {
   for (int i = 0; i < 4; i++) s_mins[i] = 0;
   hrv_buf_reset(&s_minute_buf);
   hrv_buf_reset(&s_night_buf);
+  s_spo2_n = 0;
+  s_spo2_sum = 0;
+  s_spo2_min_pct = 0;
+  storage_spo2_session_start();
   storage_session_start();
 }
 
@@ -136,7 +167,16 @@ static void prv_stop_recording(void) {
   ns.rej_jump = s_night_buf.rej_jump;
   ns.start_time = s_session_start;
   ns.end_time = time(NULL);
-  if (ns.epoch_count >= 30) storage_night_save(&ns);
+  if (ns.epoch_count >= 30) {
+    storage_night_save(&ns);
+    SpO2Night sn = {
+      .min_pct = s_spo2_min_pct,
+      .avg_pct = (s_spo2_n > 0) ? (uint8_t)(s_spo2_sum / s_spo2_n) : 0,
+      .count = (s_spo2_n > 255) ? 255 : (uint8_t)s_spo2_n,
+      .reserved = 0,
+    };
+    storage_night_save_spo2(&sn);
+  }
 }
 
 static void prv_baseline(uint16_t *avg7, uint16_t *base21_lo,
@@ -304,6 +344,44 @@ static void prv_draw_timeline(GContext *ctx, GRect bounds) {
   }
 }
 
+static void prv_draw_spo2(GContext *ctx, GRect bounds) {
+  uint8_t mn, avg, cnt;
+  if (s_recording || storage_spo2_count() > 0) {
+    mn = s_spo2_min_pct;
+    avg = (s_spo2_n > 0) ? (uint8_t)(s_spo2_sum / s_spo2_n) : 0;
+    cnt = (s_spo2_n > 255) ? 255 : (uint8_t)s_spo2_n;
+  } else {
+    SpO2Night sn;
+    storage_night_read_spo2(0, &sn);
+    mn = sn.min_pct;
+    avg = sn.avg_pct;
+    cnt = sn.count;
+  }
+  snprintf(s_txt, sizeof(s_txt),
+           "SPO2\n\nLast: %u%% (q%u)\nEvents: %lu\n\nNight min: %u%%\nNight avg: %u%%\nSamples: %u",
+           s_spo2_last, s_spo2_last_q, (unsigned long)s_spo2_events, mn, avg, cnt);
+  graphics_draw_text(ctx, s_txt, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
+                     GRect(bounds.origin.x, bounds.origin.y, bounds.size.w, bounds.size.h - 44),
+                     GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+  // Sparkline of the stored samples, y mapped 80-100%.
+  uint16_t n = storage_spo2_count();
+  if (n < 2) return;
+  int16_t h = 36;
+  int16_t y0 = bounds.size.h - h - 4;
+  uint16_t max_px = bounds.size.w;
+  SpO2Sample rec;
+  for (uint16_t x = 0; x < max_px; x++) {
+    uint16_t idx = (uint16_t)(((uint32_t)x * n) / max_px);
+    if (!storage_spo2_read(idx, &rec)) continue;
+    uint8_t pct = rec.percent;
+    if (pct < 80) pct = 80;
+    if (pct > 100) pct = 100;
+    int16_t bar = (int16_t)(((pct - 80) * h) / 20);
+    graphics_context_set_stroke_color(ctx, (rec.percent < 90) ? GColorRed : GColorJaegerGreen);
+    graphics_draw_line(ctx, GPoint(x, y0 + h), GPoint(x, y0 + h - bar));
+  }
+}
+
 static void prv_canvas_update(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   graphics_context_set_text_color(ctx, GColorBlack);
@@ -319,6 +397,7 @@ static void prv_canvas_update(Layer *layer, GContext *ctx) {
     case 1: prv_draw_session(ctx, bounds); break;
     case 2: prv_draw_baseline(ctx, bounds); break;
     case 3: prv_draw_timeline(ctx, bounds); break;
+    case 4: prv_draw_spo2(ctx, bounds); break;
   }
 }
 

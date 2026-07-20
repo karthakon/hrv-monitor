@@ -4,6 +4,9 @@
 #define KEY_EPOCH_BASE 101
 #define KEY_NIGHT_META 200
 #define KEY_NIGHT_BASE 201
+#define KEY_SPO2_META 300
+#define KEY_SPO2_BASE 301
+#define KEY_SPO2_NIGHT_BASE 400
 
 typedef struct __attribute__((packed)) {
   uint16_t epoch_count;
@@ -76,6 +79,58 @@ uint8_t storage_night_count(void) {
   NightMeta m;
   prv_night_meta(&m);
   return m.night_count;
+}
+
+void storage_spo2_session_start(void) {
+  uint16_t c = 0;
+  persist_write_data(KEY_SPO2_META, &c, sizeof(c));
+}
+
+uint16_t storage_spo2_count(void) {
+  uint16_t c;
+  if (persist_read_data(KEY_SPO2_META, &c, sizeof(c)) != sizeof(c)) return 0;
+  return c;
+}
+
+static SpO2Sample s_spo2_key_buf[SPO2_PER_KEY];
+
+void storage_spo2_write(const SpO2Sample *rec) {
+  uint16_t c = storage_spo2_count();
+  if (c >= SPO2_PER_KEY * MAX_SPO2_KEYS) return;
+  uint16_t key = KEY_SPO2_BASE + (c / SPO2_PER_KEY);
+  uint16_t slot = c % SPO2_PER_KEY;
+  memset(s_spo2_key_buf, 0, sizeof(s_spo2_key_buf));
+  persist_read_data(key, s_spo2_key_buf, sizeof(s_spo2_key_buf));
+  s_spo2_key_buf[slot] = *rec;
+  persist_write_data(key, s_spo2_key_buf, sizeof(s_spo2_key_buf));
+  c++;
+  persist_write_data(KEY_SPO2_META, &c, sizeof(c));
+}
+
+bool storage_spo2_read(uint16_t idx, SpO2Sample *out) {
+  if (idx >= storage_spo2_count()) return false;
+  uint16_t key = KEY_SPO2_BASE + (idx / SPO2_PER_KEY);
+  uint16_t slot = idx % SPO2_PER_KEY;
+  if (persist_read_data(key, s_spo2_key_buf, sizeof(s_spo2_key_buf)) !=
+      (int)sizeof(s_spo2_key_buf)) return false;
+  *out = s_spo2_key_buf[slot];
+  return true;
+}
+
+void storage_night_save_spo2(const SpO2Night *sn) {
+  NightMeta m;
+  prv_night_meta(&m);
+  if (m.night_count == 0) return;
+  persist_write_data(KEY_SPO2_NIGHT_BASE + m.newest_slot, sn, sizeof(*sn));
+}
+
+bool storage_night_read_spo2(uint8_t idx_from_newest, SpO2Night *out) {
+  memset(out, 0, sizeof(*out));
+  NightMeta m;
+  prv_night_meta(&m);
+  if (idx_from_newest >= m.night_count) return false;
+  int slot = ((int)m.newest_slot - (int)idx_from_newest + MAX_NIGHTS) % MAX_NIGHTS;
+  return persist_read_data(KEY_SPO2_NIGHT_BASE + slot, out, sizeof(*out)) == (int)sizeof(*out);
 }
 
 bool storage_night_read(uint8_t idx_from_newest, NightSummary *out) {
