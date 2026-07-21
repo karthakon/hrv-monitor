@@ -10,6 +10,19 @@ which adds HRV support for the GH3X2X optical sensor
 `health_service_set_hrv_sample_period()` and
 `health_service_peek_hrv_ppi_ms()`, which only exist in the fork.
 
+## Branches
+
+- **`main`** — builds against the PR #1670 firmware/SDK
+  ([karthakon/PebbleOS branch `hrv-gh3x2x`](https://github.com/karthakon/PebbleOS/tree/hrv-gh3x2x)).
+  Use this branch to test PR #1670. HRV only.
+- **`unified-fw`** — for the experimental unified HRV + SpO2 firmware
+  ([karthakon/PebbleOS branch `hrv-spo2-unified`](https://github.com/karthakon/PebbleOS/tree/hrv-spo2-unified)),
+  **not** `hrv-gh3x2x`. It references SDK symbols that exist only in that
+  firmware and will crash on stock or #1670 firmware. Firmware, SDK, and
+  app must all come from the same tree. Note: its overnight SpO2 logging
+  is not yet wired to the app-driven SpO2 API and records no SpO2 on the
+  current unified firmware (pending update).
+
 ## Screens (Up/Down to switch)
 
 1. **LIVE** — last PPI (ms), current HR, HR/HRV event counters,
