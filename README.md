@@ -10,6 +10,19 @@ which adds HRV support for the GH3X2X optical sensor
 `health_service_set_hrv_sample_period()` and
 `health_service_peek_hrv_ppi_ms()`, which only exist in the fork.
 
+## Branches
+
+- **`main`** — builds against the PR #1670 firmware/SDK
+  ([karthakon/PebbleOS branch `hrv-gh3x2x`](https://github.com/karthakon/PebbleOS/tree/hrv-gh3x2x)).
+  Use this branch to test PR #1670. HRV only.
+- **`unified-fw`** — for the experimental unified HRV + SpO2 firmware
+  ([karthakon/PebbleOS branch `hrv-spo2-unified`](https://github.com/karthakon/PebbleOS/tree/hrv-spo2-unified)),
+  **not** `hrv-gh3x2x`. It references SDK symbols that exist only in that
+  firmware and will crash on stock or #1670 firmware. Firmware, SDK, and
+  app must all come from the same tree. Note: its overnight SpO2 logging
+  is not yet wired to the app-driven SpO2 API and records no SpO2 on the
+  current unified firmware (pending update).
+
 ## Screens (Up/Down to switch)
 
 1. **LIVE** — last PPI (ms), current HR, HR/HRV event counters,
@@ -143,3 +156,26 @@ one you compare with — none of them is ground truth. Many devices
 only compute HRV inside a scheduled sleep window and need weeks to
 build a baseline; this app does its 7-day vs 21-day
 comparison once 21 nights are recorded.
+
+## Overnight HRV validation (July 2026)
+
+Firmware: PebbleOS `hrv-gh3x2x` (PR #1670), Pebble Time 2 (obelix@pvt), reference device Garmin Instinct Crossover Solar on the other wrist.
+
+**Problem:** overnight HRV delivery was ~2 intervals/min with a ~99% jump-rejection rate — too sparse for meaningful RMSSD.
+
+**Two firmware fixes:**
+
+1. **Staleness guard** (`9627bca`): reset the jump gate after a 10 s gap (`HRV_STALE_SEC 10`) so the first interval after a dropout isn't compared against a stale predecessor. Result: acceptance ratio 37%→50%, jump rejections 1.69→1.01/min. Helped, but delivery stayed sparse.
+2. **Sampling-rate fix** (`7eb5f49c`): the Goodix HRV algorithm's vendor config declares `fs = 100`, but the driver registered the HRV function at 25 Hz — the algo ran at a quarter of its design rate. New `GH3X2X_HRV_SAMPLING_RATE 100` for HRV registration (HR stays at 25 Hz).
+
+**Results (fw `7eb5f49c`):**
+
+| Metric | Before (25 Hz) | After (100 Hz) |
+|---|---|---|
+| Awake delivery (5 min sitting) | — | ~92 intervals/min |
+| Overnight delivery | ~2/min | 64/min (38,244 beats / 9h57m) |
+| Overnight rejection ratio | ~50% | 1.3% |
+| Overnight RMSSD vs reference | — | 63 ms vs Instinct 44 ms (peak 5-min 65 ms) |
+| Overnight battery (static screen, release) | 0.4–0.8 %/hr | ~0.9 %/hr (9% / 9h57m) |
+
+100 Hz costs roughly 4–5% extra battery per night; kept as the default.
